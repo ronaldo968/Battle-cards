@@ -1,0 +1,242 @@
+parts):
+
+// Elements
+const playerHP = document.getElementById("player-hp");
+const playerShield = document.getElementById("player-shield");
+const enemyHP = document.getElementById("enemy-hp");
+const enemyShield = document.getElementById("enemy-shield");
+const playerCard = document.getElementById("player-card");
+const enemyCard = document.getElementById("enemy-card");
+const log = document.getElementById("log");
+const coinsSpan = document.getElementById("coins");
+const trophiesSpan = document.getElementById("trophies");
+const shopDiv = document.getElementById("shop");
+const collectionDiv = document.getElementById("collection");
+
+let playerHealth = 100;
+let playerShieldValue = 100;
+let enemyHealth = 100;
+let enemyShieldValue = 100;
+
+let coins = 0;
+let trophies = 0;
+
+// Character rarities & costs
+const rarities = [
+  { name: "Rare", cost: 100 },
+  { name: "Epic", cost: 300 },
+  { name: "Mythic", cost: 700 },
+  { name: "Legendary", cost: 1000 }
+];
+
+const abilities = ["burn", "reflect", "heal", "stun", null];
+
+// Generate characters with rarity
+function generateCharacter(id) {
+  // Assign rarity weighted by some chance (you can tweak this)
+  let rarityRoll = Math.random();
+  let rarity;
+
+  if (rarityRoll < 0.5) rarity = rarities[0]; // 50% Rare
+  else if (rarityRoll < 0.75) rarity = rarities[1]; // 25% Epic
+  else if (rarityRoll < 0.9) rarity = rarities[2]; // 15% Mythic
+  else rarity = rarities[3]; // 10% Legendary
+
+  return {
+    id,
+    name: `Character ${id}`,
+    atk: Math.floor(Math.random() * 10) + 1,
+    def: Math.floor(Math.random() * 7),
+    ability: abilities[Math.floor(Math.random() * abilities.length)],
+    rarity: rarity.name,
+    cost: rarity.cost
+  };
+}
+
+const cards = Array.from({ length: 300 }, (_, i) => generateCharacter(i + 1));
+
+// Player owned characters (start empty)
+let ownedCharacters = [];
+
+// Save/load coins and trophies in localStorage
+function loadPlayerData() {
+  coins = parseInt(localStorage.getItem("coins")) || 0;
+  trophies = parseInt(localStorage.getItem("trophies")) || 0;
+  const owned = localStorage.getItem("ownedCharacters");
+  ownedCharacters = owned ? JSON.parse(owned) : [];
+  updateUI();
+}
+
+function savePlayerData() {
+  localStorage.setItem("coins", coins);
+  localStorage.setItem("trophies", trophies);
+  localStorage.setItem("ownedCharacters", JSON.stringify(ownedCharacters));
+}
+
+// Update coins and trophies display
+function updateUI() {
+  coinsSpan.textContent = coins;
+  trophiesSpan.textContent = trophies;
+}
+
+// Add daily coins (simulate daily login)
+function dailyCoins() {
+  const lastClaim = localStorage.getItem("lastDaily");
+  const today = new Date().toDateString();
+  if (lastClaim !== today) {
+    coins += 100;
+    localStorage.setItem("lastDaily", today);
+    savePlayerData();
+    updateUI();
+    alert("Daily 100 coins added!");
+  }
+}
+
+// Show shop items
+function showShop() {
+  shopDiv.innerHTML = "";
+  cards.forEach(card => {
+    if (!ownedCharacters.includes(card.id)) {
+      const item = document.createElement("div");
+      item.className = "shop-item";
+      item.innerHTML = `
+        <strong>${card.name}</strong> (${card.rarity})<br>
+        ATK: ${card.atk} DEF: ${card.def}<br>
+        Cost: ${card.cost} coins<br>
+        <button onclick="buyCharacter(${card.id})">Buy</button>
+      `;
+      shopDiv.appendChild(item);
+    }
+  });
+}
+
+// Buy character
+function buyCharacter(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return alert("Character not found.");
+  if (coins < card.cost) return alert("Not enough coins!");
+  if (ownedCharacters.includes(id)) return alert("You already own this character.");
+  coins -= card.cost;
+  ownedCharacters.push(id);
+  savePlayerData();
+  updateUI();
+  showShop();
+  showCollection();
+}
+
+// Show owned characters
+function showCollection() {
+  collectionDiv.innerHTML = "";
+  ownedCharacters.forEach(id => {
+    const card = cards.find(c => c.id === id);
+    if (card) {
+      const item = document.createElement("div");
+      item.className = "collection-item";
+      item.innerHTML = `
+        <strong>${card.name}</strong> (${card.rarity})<br>
+        ATK: ${card.atk} DEF: ${card.def}
+      `;
+      collectionDiv.appendChild(item);
+    }
+  });
+}
+
+// Modified playRound: use only owned characters (or fallback to all if none owned)
+function playRound() {
+  if (playerHealth <= 0 || enemyHealth <= 0) return;
+
+  const playerDeck = ownedCharacters.length > 0 
+    ? ownedCharacters.map(id => cards.find(c => c.id === id)) 
+    : cards;
+
+  const player = playerDeck[Math.floor(Math.random() * playerDeck.length)];
+  const enemy = cards[Math.floor(Math.random() * cards.length)];
+
+  displayCard(player, playerCard);
+  displayCard(enemy, enemyCard);
+
+  let dmgToEnemy = Math.max(0, player.atk - enemy.def);
+  let dmgToPlayer = Math.max(0, enemy.atk - player.def);
+
+  if (player.ability === "burn") dmgToEnemy += 2;
+  if (enemy.ability === "burn") dmgToPlayer += 2;
+
+  const playerResult = applyDamage({ hp: playerHealth, shield: playerShieldValue }, dmgToPlayer);
+  const enemyResult = applyDamage({ hp: enemyHealth, shield: enemyShieldValue }, dmgToEnemy);
+
+  playerHealth = playerResult.hp;
+  playerShieldValue = playerResult.shield;
+  enemyHealth = enemyResult.hp;
+  enemyShieldValue = enemyResult.shield;
+
+  playerHP.textContent = playerHealth;
+  playerShield.textContent = playerShieldValue;
+  enemyHP.textContent = enemyHealth;
+  enemyShield.textContent = enemyShieldValue;
+
+  log.textContent = `You dealt ${dmgToEnemy} | Enemy dealt ${dmgToPlayer}`;
+
+  if (playerHealth <= 0 || enemyHealth <= 0) {
+    if (playerHealth <= 0 && enemyHealth <= 0) {
+      log.textContent += " — It's a draw!";
+    } else if (playerHealth <= 0) {
+      log.textContent += " — You lost.";
+    } else {
+      log.textContent += " — You won!";
+      trophies += 10;  // Increase trophies on win
+      if (trophies >= 100) {
+        trophies -= 100;
+        coins += 100;  // Bonus coins on trophy milestone
+        alert("Trophy milestone reached! +100 coins awarded!");
+      }
+      updateUI();
+      savePlayerData();
+    }
+  }
+}
+
+// Utility functions (displayCard, applyDamage) same as before
+function displayCard(card, element) {
+  let html = `<strong>${card.name}</strong><br>ATK: ${card.atk}<br>DEF: ${card.def}`;
+  if (card.ability) {
+    html += `<br>Ability: ${card.ability}`;
+  }
+  element.innerHTML = html;
+}
+
+function applyDamage(target, rawDamage) {
+  let shield = target.shield;
+  let hp = target.hp;
+
+  if (shield >= rawDamage) {
+    shield -= rawDamage;
+    rawDamage = 0;
+  } else {
+    rawDamage -= shield;
+    shield = 0;
+    hp -= rawDamage;
+  }
+
+  return { hp: Math.max(hp, 0), shield: Math.max(shield, 0) };
+}
+
+// Initial load
+loadPlayerData();
+dailyCoins();
+showShop();
+showCollection();
+updateUI();
+And here’s the HTML additions for coins, trophies, shop, and collection:
+
+Add inside <body> just below the game div:
+
+<div class="player-stats">
+  <p>Coins: <span id="coins">0</span></p>
+  <p>Trophies: <span id="trophies">0</span></p>
+</div>
+
+<h2>Shop</h2>
+<div id="shop" style="border:1px solid #666; padding:10px; max-height:300px; overflow-y:auto;"></div>
+
+<h2>Your Collection</h2>
+<div id="collection" style="border:1px solid #666; padding:10px; max-height:300px; overflow-y:auto;"></div

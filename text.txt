@@ -1,0 +1,14 @@
+that:
+
+if (playerHealth <= 0 || enemyHealth <= 0) {
+  if (playerHealth <= 0 && enemyHealth <= 0) {
+    log.textContent += " — It's a draw!";
+  } else if (playerHealth <= 0) {
+    log.textContent += " — You lost.";
+  } else {
+    log.textContent += " — You won!";
+    trophies += 10;   // Add 10 trophies on win
+    coins += 8;       // Add 8 coins on win
+    if (trophies >= 100) {
+      trophies -= 100;
+      coins += 100;  // Bonus 100 coins on trophy milestone

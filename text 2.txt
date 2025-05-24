@@ -1,0 +1,5 @@
+styling):
+
+.shop-item, .collection-item {
+  border-bottom: 1px solid #888
+You
